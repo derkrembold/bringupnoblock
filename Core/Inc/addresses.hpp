@@ -18,14 +18,12 @@ const uint8_t slave2 = 0x02;
 const uint8_t slave3 = 0x03;
 
 
-const uint8_t pids[] ={cntlslv0, cntlslv1, cntlslv2, stslv0};
-const uint8_t messagebytes[] ={1, 2, 3, 2};
+const uint8_t pids[] ={cntlslv0, cntlslv1, cntlslv2, stslv0, stslv1};
+const uint8_t messagebytes[] ={2, 3, 4, 3, 2};
 
-//const uint8_t sources[] ={master, master, master, master};
-//const uint8_t destinations[] ={slave0, slave0, slave0, slave0};
 
-const uint8_t sources[] ={master, master, master, slave0};
-const uint8_t destinations[] ={slave0, slave0, slave0, master};
+const uint8_t sources[] ={master, master, master, slave0, slave0};
+const uint8_t destinations[] ={slave0, slave0, slave0, master, master};
 
 
 
