@@ -43,7 +43,7 @@
 /* USER CODE END PM */
 
 /* Private variables ---------------------------------------------------------*/
-
+ADC_HandleTypeDef hadc2;
 UART_HandleTypeDef huart4;
 
 /* USER CODE BEGIN PV */
@@ -55,21 +55,32 @@ void SystemClock_Config(void);
 static void MPU_Config(void);
 static void MX_GPIO_Init(void);
 static void MX_UART4_Init(void);
+static void MX_ADC2_Init(void);
 /* USER CODE BEGIN PFP */
 uint8_t checksum(const uint8_t *, uint8_t);
+void fillbody(uint8_t, uint8_t*, uint8_t);
 void error (int);
 uint8_t iam();
 uint8_t addparity(uint8_t);
+int8_t getindex(uint8_t);
 
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
 
+uint8_t rx_header[2];
+uint8_t rx_body[10];
 
-uint8_t tx_buff[]={0x01,0xa2,0x03,0xb4,0x05,0xc6,0x07,0x08,0xd9,0x0a};
-uint8_t rx_buff[12];
-bool messagerecvd = false;
+uint8_t linbodysize = 0;
+uint8_t tx_body[10];
+
+
+bool headerrecvd = false;
+bool bodyrecvd = false;
+bool bodysent = false;
+
+
 
 /* USER CODE END 0 */
 
@@ -106,6 +117,7 @@ int main(void)
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
   MX_UART4_Init();
+  MX_ADC2_Init();
   /* USER CODE BEGIN 2 */
   HAL_GPIO_WritePin(GPIOB, GPIO_PIN_4, GPIO_PIN_SET); // CS on high
   /* USER CODE END 2 */
@@ -137,10 +149,11 @@ int main(void)
 
   for (;;)
   {
-	  HAL_UART_Receive_IT(&huart4, rx_buff, 5);
+	  HAL_UART_Receive_IT(&huart4, rx_header, 2);
 	  //HAL_UART_Transmit_IT(&huart4, tx_buff, 10);
 	  //HAL_Delay(5000);
-	  while (messagerecvd == false) {
+	  while (bodyrecvd == false) {
+
 		  if(HAL_GPIO_ReadPin (GPIOE, GPIO_PIN_5) ==  GPIO_PIN_RESET)
 		  {
 			  // Set The LED ON!
@@ -174,12 +187,12 @@ int main(void)
 			  HAL_GPIO_WritePin(GPIOE, GPIO_PIN_8, GPIO_PIN_RESET);
 		  }
 	  }
-	  messagerecvd = false;
-	  if (rx_buff[2] == 0x01 && rx_buff[3] == 0xab) {
+	  bodyrecvd = false;
+	  if (rx_body[0] == 0x01 && rx_body[1] == 0xab) {
 		  HAL_GPIO_WritePin(GPIOB, GPIO_PIN_9, GPIO_PIN_SET);
 
 	  }
-	  if (rx_buff[2] == 0xcd && rx_buff[3] == 0x0c) {
+	  if (rx_body[0] == 0xcd && rx_body[1] == 0x0c) {
 		  HAL_GPIO_WritePin(GPIOB, GPIO_PIN_9, GPIO_PIN_RESET);
 
 	  }
@@ -290,6 +303,65 @@ static void MX_UART4_Init(void)
 
 }
 
+/**
+  * @brief ADC2 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_ADC2_Init(void)
+{
+
+  /* USER CODE BEGIN ADC2_Init 0 */
+
+  /* USER CODE END ADC2_Init 0 */
+
+  ADC_ChannelConfTypeDef sConfig = {0};
+
+  /* USER CODE BEGIN ADC2_Init 1 */
+
+  /* USER CODE END ADC2_Init 1 */
+
+  /** Common config
+  */
+  hadc2.Instance = ADC2;
+  hadc2.Init.ClockPrescaler = ADC_CLOCK_ASYNC_DIV2;
+  hadc2.Init.Resolution = ADC_RESOLUTION_12B;
+  hadc2.Init.ScanConvMode = ADC_SCAN_DISABLE;
+  hadc2.Init.EOCSelection = ADC_EOC_SINGLE_CONV;
+  hadc2.Init.LowPowerAutoWait = DISABLE;
+  hadc2.Init.ContinuousConvMode = DISABLE;
+  hadc2.Init.NbrOfConversion = 1;
+  hadc2.Init.DiscontinuousConvMode = DISABLE;
+  hadc2.Init.ExternalTrigConv = ADC_SOFTWARE_START;
+  hadc2.Init.ExternalTrigConvEdge = ADC_EXTERNALTRIGCONVEDGE_NONE;
+  hadc2.Init.ConversionDataManagement = ADC_CONVERSIONDATA_DR;
+  hadc2.Init.Overrun = ADC_OVR_DATA_PRESERVED;
+  hadc2.Init.LeftBitShift = ADC_LEFTBITSHIFT_NONE;
+  hadc2.Init.OversamplingMode = DISABLE;
+  hadc2.Init.Oversampling.Ratio = 1;
+  if (HAL_ADC_Init(&hadc2) != HAL_OK)
+  {
+    Error_Handler();
+  }
+
+  /** Configure Regular Channel
+  */
+  sConfig.Channel = ADC_CHANNEL_9;
+  sConfig.Rank = ADC_REGULAR_RANK_1;
+  sConfig.SamplingTime = ADC_SAMPLETIME_1CYCLE_5;
+  sConfig.SingleDiff = ADC_SINGLE_ENDED;
+  sConfig.OffsetNumber = ADC_OFFSET_NONE;
+  sConfig.Offset = 0;
+  sConfig.OffsetSignedSaturation = DISABLE;
+  if (HAL_ADC_ConfigChannel(&hadc2, &sConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN ADC2_Init 2 */
+
+  /* USER CODE END ADC2_Init 2 */
+
+}
 
 static void MX_GPIO_Init(void)
 {
@@ -331,6 +403,12 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Pull = GPIO_PULLUP;
   HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
 
+  /*Configure GPIO pin : PB0 */
+  GPIO_InitStruct.Pin = GPIO_PIN_0;
+  GPIO_InitStruct.Mode = GPIO_MODE_ANALOG;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
+
   /*Configure GPIO pins : PE8 PE9 PE10 PE11
                            PE12 PE13 */
   GPIO_InitStruct.Pin = GPIO_PIN_8|GPIO_PIN_9|GPIO_PIN_10|GPIO_PIN_11
@@ -360,60 +438,43 @@ static void MX_GPIO_Init(void)
   /* USER CODE END MX_GPIO_Init_2 */
 }
 
-#ifdef BLUBBER
-/**
-  * @brief GPIO Initialization Function
-  * @param None
-  * @retval None
-  */
-static void MX_GPIO_Init(void)
-{
-  GPIO_InitTypeDef GPIO_InitStruct = {0};
-  /* USER CODE BEGIN MX_GPIO_Init_1 */
 
-  /* USER CODE END MX_GPIO_Init_1 */
-
-  /* GPIO Ports Clock Enable */
-  __HAL_RCC_GPIOC_CLK_ENABLE();
-  __HAL_RCC_GPIOA_CLK_ENABLE();
-  __HAL_RCC_GPIOB_CLK_ENABLE();
-
-  /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOB, GPIO_PIN_4|GPIO_PIN_6|GPIO_PIN_7|GPIO_PIN_8
-                          |GPIO_PIN_9, GPIO_PIN_RESET);
-
-  /*Configure GPIO pins : PB4 PB6 PB7 PB8
-                           PB9 */
-  GPIO_InitStruct.Pin = GPIO_PIN_4|GPIO_PIN_6|GPIO_PIN_7|GPIO_PIN_8
-                          |GPIO_PIN_9;
-  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
-  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
-  HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
-
-  /*Configure GPIO pin : PB5 */
-  GPIO_InitStruct.Pin = GPIO_PIN_5;
-  GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
-  HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
-
-  /* USER CODE BEGIN MX_GPIO_Init_2 */
-
-  /* USER CODE END MX_GPIO_Init_2 */
-}
-#endif
 
 /* USER CODE BEGIN 4 */
 void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
 {
 	//messagerecvd = false;
-	if (rx_buff[0] == 0x55) {
-		if (rx_buff[1] == addparity(0x02)) {
-			if(checksum(&rx_buff[2], 2) == rx_buff[4]) {
-				messagerecvd = true;
+	if (headerrecvd == false && bodyrecvd == false) {
+		if (rx_header[0] == 0x55) {
+			uint8_t address = rx_header[1] & 0x3f;
+			int8_t linindex = getindex(address);
+			if (linindex >= 0) {
+				if (pids[linindex] == address) {
+					if (sources[linindex] == master) {
+						linbodysize = messagebytes[linindex];
+						HAL_UART_Receive_IT(&huart4, rx_body, linbodysize + 1);
+						// checksum sollte noch hier berechnet werden und gecheckt werden.
+						headerrecvd = true;
+					} else if (sources[linindex] != master) {
+						linbodysize = messagebytes[linindex];
+						fillbody(rx_header[1] & 0x3f, tx_body, linbodysize);
+						tx_body[linbodysize] = checksum(tx_body, linbodysize);
+						HAL_UART_Receive_IT(&huart4, rx_body, linbodysize + 1);
+						HAL_UART_Transmit_IT(&huart4, tx_body, linbodysize + 1);
+
+						headerrecvd = true;
+						bodysent = true;
+					}
+				}
 			}
 		}
+	} else if(headerrecvd == true && bodyrecvd == false) {
+		headerrecvd = false;
+		bodyrecvd = true;
+	} else if(bodysent == true) {
+		bodysent = false;
 	}
+
 }
 
 
@@ -457,6 +518,24 @@ uint8_t checksum(const uint8_t *data, uint8_t len) {
     return (uint8_t)(~checksum);
 }
 
+void fillbody(uint8_t addr, uint8_t *data, uint8_t len) {
+
+	if(addr == stslv0) {
+		GPIO_PinState high = HAL_GPIO_ReadPin (GPIOC, GPIO_PIN_0); // high, see arduino above
+		GPIO_PinState middle = HAL_GPIO_ReadPin (GPIOC, GPIO_PIN_1); // middle, see arduino above
+		GPIO_PinState low = HAL_GPIO_ReadPin (GPIOC, GPIO_PIN_2); // low, see arduino above
+		data[0] = (high == GPIO_PIN_RESET) ? 0x00 : 0x01;
+		data[1] = (middle == GPIO_PIN_RESET) ? 0x00 : 0x01;
+		data[2] = (low == GPIO_PIN_RESET) ? 0x00 : 0x01;
+	} else 	if(addr == stslv1) {
+		HAL_ADC_Start(&hadc2);
+		HAL_ADC_PollForConversion(&hadc2, 10);
+		uint32_t val = HAL_ADC_GetValue(&hadc2);
+		data[0] = 0xFF & val;
+		data[1] = (0xFF00 & val) >> 8;
+	}
+}
+
 uint8_t addparity(uint8_t addr) {
   uint8_t temp = addr & 0x3f;
   uint8_t p0 = BIT(temp,0) + BIT(temp,1) + BIT(temp,2) + BIT(temp,4);
@@ -465,6 +544,18 @@ uint8_t addparity(uint8_t addr) {
   p1 = (~p1) & 0x01;
 
   return addr | (p0 << 6) | (p1 << 7);
+}
+
+int8_t getindex(uint8_t addr) {
+	int8_t linindex = 0;
+	for (unsigned int i = 0; i < sizeof(pids); i++) {
+	  if (pids[i] == addr) {
+		linindex = i;
+		return linindex;
+	  }
+	}
+	return LIN_PID_ERR;
+
 }
 /* USER CODE END 4 */
 
